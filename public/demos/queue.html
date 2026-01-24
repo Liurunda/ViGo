@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>队列 Queue 可视化</title>
+<style>
+    body {
+        font-family: Arial, "Microsoft YaHei", sans-serif;
+        background: #f5f7fa;
+        text-align: center;
+        padding: 30px;
+    }
+
+    h1 {
+        margin-bottom: 10px;
+    }
+
+    .controls {
+        margin: 20px 0;
+    }
+
+    input {
+        width: 120px;
+        padding: 6px;
+        font-size: 16px;
+    }
+
+    button {
+        padding: 6px 14px;
+        margin-left: 6px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    .queue-container {
+        margin-top: 30px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 12px;
+        min-height: 120px;
+    }
+
+    .node-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .label {
+        font-size: 14px;
+        margin-bottom: 4px;
+        color: #555;
+    }
+
+    .node {
+        width: 60px;
+        height: 60px;
+        background: #4f8cff;
+        color: white;
+        font-size: 20px;
+        font-weight: bold;
+        line-height: 60px;
+        border-radius: 8px;
+        transition: transform 0.3s, background 0.3s;
+    }
+
+    .front .node {
+        background: #2ecc71;
+    }
+
+    .rear .node {
+        background: #e67e22;
+    }
+
+    .empty {
+        color: #999;
+        margin-top: 40px;
+        font-size: 18px;
+    }
+</style>
+</head>
+
+<body>
+
+<h1>队列（Queue）可视化</h1>
+<p>左边是队头（Front），右边是队尾（Rear）</p>
+
+<div class="controls">
+    <input type="text" id="valueInput" placeholder="入队元素" />
+    <button onclick="push()">Push</button>
+    <button onclick="pop()">Pop</button>
+</div>
+
+<div id="queue" class="queue-container"></div>
+<div id="emptyTip" class="empty">当前队列为空</div>
+
+<script>
+    const queue = [];
+    const queueDiv = document.getElementById("queue");
+    const emptyTip = document.getElementById("emptyTip");
+
+    function render() {
+        queueDiv.innerHTML = "";
+
+        if (queue.length === 0) {
+            emptyTip.style.display = "block";
+            return;
+        } else {
+            emptyTip.style.display = "none";
+        }
+
+        queue.forEach((value, index) => {
+            const wrapper = document.createElement("div");
+            wrapper.className = "node-wrapper";
+
+            if (index === 0) {
+                wrapper.classList.add("front");
+                const label = document.createElement("div");
+                label.className = "label";
+                label.innerText = "Front";
+                wrapper.appendChild(label);
+            } else if (index === queue.length - 1) {
+                wrapper.classList.add("rear");
+                const label = document.createElement("div");
+                label.className = "label";
+                label.innerText = "Rear";
+                wrapper.appendChild(label);
+            } else {
+                const spacer = document.createElement("div");
+                spacer.className = "label";
+                spacer.innerHTML = "&nbsp;";
+                wrapper.appendChild(spacer);
+            }
+
+            const node = document.createElement("div");
+            node.className = "node";
+            node.innerText = value;
+
+            wrapper.appendChild(node);
+            queueDiv.appendChild(wrapper);
+        });
+    }
+
+    function push() {
+        const input = document.getElementById("valueInput");
+        const value = input.value.trim();
+        if (value === "") return;
+
+        queue.push(value);
+        input.value = "";
+        render();
+    }
+
+    function pop() {
+        if (queue.length === 0) return;
+        queue.shift();
+        render();
+    }
+
+    render();
+</script>
+
+</body>
+</html>
