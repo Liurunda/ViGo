@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>栈的括号匹配可视化</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --success-color: #2ecc71;
+            --error-color: #e74c3c;
+            --bg-color: #f4f6f7;
+            --stack-bg: #ecf0f1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        h1 { color: #2c3e50; }
+
+        /* 控制区域 */
+        .controls {
+            margin-bottom: 30px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        input[type="text"] {
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            width: 250px;
+            font-family: monospace;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        button:hover { background-color: #2980b9; }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+        /* 可视化主要区域 */
+        .visualization-container {
+            display: flex;
+            gap: 50px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+
+        /* 输入字符串展示条 */
+        .input-display {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            justify-content: center;
+            min-height: 60px;
+        }
+
+        .char-box {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #bdc3c7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 20px;
+            border-radius: 4px;
+            background: white;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        /* 当前正在处理的字符 */
+        .char-box.active {
+            border-color: var(--primary-color);
+            transform: translateY(-10px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+        
+        .char-box.active::after {
+            content: '↑';
+            position: absolute;
+            bottom: -25px;
+            color: var(--primary-color);
+            font-size: 20px;
+        }
+
+        .char-box.matched { background-color: var(--success-color); color: white; border-color: var(--success-color); }
+        .char-box.error { background-color: var(--error-color); color: white; border-color: var(--error-color); }
+
+        /* 栈的样式 */
+        .stack-container {
+            width: 100px;
+            height: 300px;
+            border-left: 4px solid #34495e;
+            border-right: 4px solid #34495e;
+            border-bottom: 4px solid #34495e;
+            background-color: var(--stack-bg);
+            border-radius: 0 0 8px 8px;
+            display: flex;
+            flex-direction: column-reverse; /* 让元素从底部开始堆叠 */
+            padding: 10px;
+            gap: 5px;
+            position: relative;
+        }
+
+        .stack-container::before {
+            content: 'Stack (栈)';
+            position: absolute;
+            bottom: -30px;
+            width: 100%;
+            text-align: center;
+            color: #7f8c8d;
+            font-weight: bold;
+        }
+
+        .stack-item {
+            width: 100%;
+            height: 40px;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            border-radius: 4px;
+            animation: pushAnimation 0.5s ease;
+        }
+
+        .stack-item.popping {
+            animation: popAnimation 0.5s ease forwards;
+        }
+
+        @keyframes pushAnimation {
+            from { opacity: 0; transform: translateY(-50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes popAnimation {
+            to { opacity: 0; transform: translateX(50px) scale(0.5); }
+        }
+
+        /* 日志区域 */
+        #log-area {
+            width: 600px;
+            height: 100px;
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-line { margin: 5px 0; border-bottom: 1px solid #34495e; padding-bottom: 2px; }
+        .log-success { color: var(--success-color); }
+        .log-error { color: var(--error-color); }
+        .log-info { color: #3498db; }
+    </style>
+</head>
+<body>
+
+    <h1>括号匹配可视化</h1>
+
+    <div class="controls">
+        <input type="text" id="inputString" value="{[()]}()" placeholder="输入包含括号的字符串">
+        <button id="startBtn" onclick="startVisualization()">开始匹配</button>
+        <button onclick="reset()">重置</button>
+        <label>速度: <input type="range" id="speedRange" min="100" max="1500" value="800"></label>
+    </div>
+
+    <div id="string-container" class="input-display">
+        <!-- 字符会在这里生成 -->
+    </div>
+
+    <div class="visualization-container">
+        <div class="stack-container" id="visual-stack">
+            <!-- 栈元素会在这里生成 -->
+        </div>
+    </div>
+
+    <div id="log-area">等待开始...</div>
+
+    <script>
+        const inputStrEl = document.getElementById('inputString');
+        const stringContainer = document.getElementById('string-container');
+        const visualStack = document.getElementById('visual-stack');
+        const logArea = document.getElementById('log-area');
+        const startBtn = document.getElementById('startBtn');
+        const speedRange = document.getElementById('speedRange');
+
+        let isRunning = false;
+
+        // 括号配对字典
+        const pairs = {
+            ')': '(',
+            ']': '[',
+            '}': '{'
+        };
+
+        const openBrackets = new Set(['(', '[', '{']);
+        const closeBrackets = new Set([')', ']', '}']);
+
+        function log(msg, type = '') {
+            const div = document.createElement('div');
+            div.className = `log-line log-${type}`;
+            div.textContent = `> ${msg}`;
+            logArea.prepend(div);
+        }
+
+        function sleep() {
+            // 获取当前滑动条的值作为延迟，值越大速度越慢（延迟越高）
+            // 注意：UI上通常"速度"越大越快，所以这里反转一下逻辑，或者直接把滑动条当"延迟时间"用
+            // 这里为了简单，滑动条值就是毫秒数
+            const ms = parseInt(speedRange.value); 
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function createStringElements(str) {
+            stringContainer.innerHTML = '';
+            for (let i = 0; i < str.length; i++) {
+                const div = document.createElement('div');
+                div.className = 'char-box';
+                div.id = `char-${i}`;
+                div.textContent = str[i];
+                stringContainer.appendChild(div);
+            }
+        }
+
+        function reset() {
+            stringContainer.innerHTML = '';
+            visualStack.innerHTML = '';
+            logArea.innerHTML = '已重置';
+            isRunning = false;
+            startBtn.disabled = false;
+            createStringElements(inputStrEl.value);
+        }
+
+        // 初始化显示
+        createStringElements(inputStrEl.value);
+
+        async function startVisualization() {
+            if (isRunning) return;
+            isRunning = true;
+            startBtn.disabled = true;
+            
+            const str = inputStrEl.value;
+            createStringElements(str);
+            visualStack.innerHTML = '';
+            logArea.innerHTML = '';
+            
+            // 逻辑栈
+            let stack = []; 
+
+            try {
+                for (let i = 0; i < str.length; i++) {
+                    const char = str[i];
+                    const charBox = document.getElementById(`char-${i}`);
+                    
+                    // 1. 选中当前字符
+                    charBox.classList.add('active');
+                    await sleep();
+
+                    if (openBrackets.has(char)) {
+                        // --- 情况 A: 左括号 ---
+                        log(`遇到左括号 "${char}"，入栈`, 'info');
+                        
+                        // 逻辑入栈
+                        stack.push(char);
+                        
+                        // 视觉入栈
+                        const stackItem = document.createElement('div');
+                        stackItem.className = 'stack-item';
+                        stackItem.textContent = char;
+                        stackItem.id = `stack-item-${stack.length}`; // 标记ID以便查找
+                        visualStack.appendChild(stackItem);
+
+                    } else if (closeBrackets.has(char)) {
+                        // --- 情况 B: 右括号 ---
+                        log(`遇到右括号 "${char}"，尝试匹配...`);
+                        
+                        if (stack.length === 0) {
+                            // 栈空，错误
+                            log(`栈为空，无法匹配 "${char}"！`, 'error');
+                            charBox.classList.add('error');
+                            throw new Error('Empty Stack');
+                        }
+
+                        const topChar = stack[stack.length - 1]; // 获取栈顶
+                        log(`当前栈顶是 "${topChar}"`);
+                        
+                        // 检查是否匹配
+                        if (pairs[char] === topChar) {
+                            // 匹配成功
+                            log(`"${topChar}" 与 "${char}" 匹配成功！出栈。`, 'success');
+                            
+                            // 逻辑出栈
+                            stack.pop();
+                            
+                            // 视觉出栈
+                            const visualTop = visualStack.lastElementChild;
+                            visualTop.classList.add('popping');
+                            visualTop.style.backgroundColor = '#2ecc71'; // 变绿表示成功
+                            charBox.classList.add('matched'); // 字符串里的字符也变绿
+                            
+                            await sleep(); // 等待动画
+                            if(visualTop) visualStack.removeChild(visualTop);
+                            
+                        } else {
+                            // 括号类型不匹配
+                            log(`失败！"${topChar}" 与 "${char}" 不匹配。`, 'error');
+                            
+                            const visualTop = visualStack.lastElementChild;
+                            visualTop.style.backgroundColor = '#e74c3c'; // 栈顶变红
+                            charBox.classList.add('error');
+                            throw new Error('Mismatch');
+                        }
+                    } else {
+                        // 非括号字符，忽略
+                        log(`"${char}" 不是括号，跳过。`);
+                    }
+
+                    // 移除当前选中状态
+                    charBox.classList.remove('active');
+                    // 如果已经匹配了，保持绿色，否则恢复
+                    if(!charBox.classList.contains('matched') && !charBox.classList.contains('error')) {
+                        charBox.style.borderColor = '#bdc3c7';
+                    }
+                }
+
+                // 循环结束后的检查
+                if (stack.length === 0) {
+                    log('字符串遍历结束，栈为空。完全匹配！SUCCESS', 'success');
+                    stringContainer.style.backgroundColor = '#e8f8f5';
+                } else {
+                    log(`遍历结束，但栈不为空 (剩余 ${stack.length} 个)。匹配失败。`, 'error');
+                    // 将剩余的栈元素变红
+                    Array.from(visualStack.children).forEach(el => el.style.backgroundColor = '#e74c3c');
+                }
+
+            } catch (e) {
+                log('检测到错误，流程终止。', 'error');
+            } finally {
+                isRunning = false;
+                startBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
