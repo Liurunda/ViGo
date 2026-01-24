@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>单调队列（维护最大值）可视化</title>
+<style>
+    body {
+        font-family: Arial, "Microsoft YaHei", sans-serif;
+        background: #f5f7fa;
+        padding: 30px;
+        text-align: center;
+    }
+
+    h1 {
+        margin-bottom: 5px;
+    }
+
+    .controls {
+        margin: 20px 0;
+    }
+
+    input {
+        width: 120px;
+        padding: 6px;
+        font-size: 16px;
+    }
+
+    button {
+        padding: 6px 14px;
+        margin-left: 6px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    .section {
+        margin-top: 30px;
+    }
+
+    .queue-container {
+        margin-top: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 12px;
+        min-height: 120px;
+    }
+
+    .node-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .label {
+        font-size: 14px;
+        margin-bottom: 4px;
+        color: #555;
+    }
+
+    .node {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        color: white;
+        font-size: 20px;
+        font-weight: bold;
+        line-height: 60px;
+    }
+
+    /* 原队列样式 */
+    .normal .node {
+        background: #4f8cff;
+    }
+
+    /* 单调队列样式 */
+    .mono .node {
+        background: #e67e22;
+    }
+
+    .front .node {
+        box-shadow: 0 0 0 3px #2ecc71 inset;
+    }
+
+    .rear .node {
+        box-shadow: 0 0 0 3px #9b59b6 inset;
+    }
+
+    .empty {
+        color: #999;
+        margin-top: 10px;
+    }
+
+    .hint {
+        margin-top: 10px;
+        color: #333;
+        font-size: 16px;
+    }
+</style>
+</head>
+
+<body>
+
+<h1>单调队列（维护最大值）可视化</h1>
+<p>下方展示：原队列 & 单调递减队列（只保留可能成为最大值的元素）</p>
+
+<div class="controls">
+    <input type="number" id="valueInput" placeholder="入队数字">
+    <button onclick="push()">Push</button>
+    <button onclick="pop()">Pop</button>
+</div>
+
+<div class="section">
+    <h2>原队列（Normal Queue）</h2>
+    <div id="normalQueue" class="queue-container normal"></div>
+    <div id="normalEmpty" class="empty">原队列为空</div>
+</div>
+
+<div class="section">
+    <h2>单调队列（Monotonic Queue）</h2>
+    <div id="monoQueue" class="queue-container mono"></div>
+    <div id="monoEmpty" class="empty">单调队列为空</div>
+    <div id="maxHint" class="hint"></div>
+</div>
+
+<script>
+    const normal = [];
+    const mono = [];
+
+    const normalDiv = document.getElementById("normalQueue");
+    const monoDiv = document.getElementById("monoQueue");
+    const normalEmpty = document.getElementById("normalEmpty");
+    const monoEmpty = document.getElementById("monoEmpty");
+    const maxHint = document.getElementById("maxHint");
+
+    function renderQueue(arr, container, emptyTip) {
+        container.innerHTML = "";
+        if (arr.length === 0) {
+            emptyTip.style.display = "block";
+            return;
+        }
+        emptyTip.style.display = "none";
+
+        arr.forEach((value, index) => {
+            const wrapper = document.createElement("div");
+            wrapper.className = "node-wrapper";
+
+            const label = document.createElement("div");
+            label.className = "label";
+
+            if (index === 0) label.innerText = "Front";
+            else if (index === arr.length - 1) label.innerText = "Rear";
+            else label.innerHTML = "&nbsp;";
+
+            const node = document.createElement("div");
+            node.className = "node";
+            node.innerText = value;
+
+            if (index === 0) wrapper.classList.add("front");
+            if (index === arr.length - 1) wrapper.classList.add("rear");
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(node);
+            container.appendChild(wrapper);
+        });
+    }
+
+    function render() {
+        renderQueue(normal, normalDiv, normalEmpty);
+        renderQueue(mono, monoDiv, monoEmpty);
+
+        if (mono.length > 0) {
+            maxHint.innerText = "当前最大值 = " + mono[0];
+        } else {
+            maxHint.innerText = "";
+        }
+    }
+
+    function push() {
+        const input = document.getElementById("valueInput");
+        const value = parseInt(input.value);
+        if (isNaN(value)) return;
+
+        // 原队列入队
+        normal.push(value);
+
+        // 单调队列：从队尾移除所有小于 value 的元素
+        while (mono.length > 0 && mono[mono.length - 1] < value) {
+            mono.pop();
+        }
+        mono.push(value);
+
+        input.value = "";
+        render();
+    }
+
+    function pop() {
+        if (normal.length === 0) return;
+
+        const removed = normal.shift();
+
+        // 如果移除的是当前最大值
+        if (mono.length > 0 && mono[0] === removed) {
+            mono.shift();
+        }
+
+        render();
+    }
+
+    render();
+</script>
+
+</body>
+</html>
