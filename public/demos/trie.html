@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>字典树 (Trie) 可视化演示</title>
+    <style>
+        :root {
+            --node-radius: 20px;
+            --level-height: 80px;
+            --primary-color: #3498db;
+            --end-color: #e74c3c;
+            --active-color: #f1c40f;
+            --text-color: #fff;
+            --bg-color: #f8f9fa;
+            --line-color: #bdc3c7;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+        }
+
+        h1 { color: #2c3e50; margin-bottom: 10px; }
+
+        .controls {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 300px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: transform 0.1s;
+        }
+
+        button:active { transform: scale(0.98); }
+        .btn-insert { background-color: var(--primary-color); }
+        .btn-reset { background-color: #95a5a6; }
+        .btn-random { background-color: #9b59b6; }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* 画布容器 */
+        .canvas-container {
+            flex: 1;
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: auto; /* 允许滚动 */
+            position: relative;
+            display: flex;
+            justify-content: center;
+        }
+
+        svg {
+            min-width: 100%;
+            min-height: 100%;
+        }
+
+        /* 节点样式 */
+        .node-circle {
+            fill: var(--primary-color);
+            stroke: #fff;
+            stroke-width: 2px;
+            transition: fill 0.3s, r 0.3s;
+        }
+
+        .node-text {
+            fill: white;
+            font-size: 14px;
+            font-weight: bold;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+        }
+
+        .link {
+            stroke: var(--line-color);
+            stroke-width: 2px;
+            transition: stroke 0.3s;
+        }
+
+        /* 状态类 */
+        .is-end { fill: var(--end-color); }
+        .active-node { 
+            fill: var(--active-color); 
+            stroke: #333;
+            r: 25px;
+        }
+        .active-link { stroke: var(--active-color); stroke-width: 4px; }
+
+        .status-panel {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #555;
+            height: 24px;
+        }
+
+        .legend {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>字典树 (Trie) 可视化</h1>
+
+    <div class="controls">
+        <input type="text" id="inputWords" value="cat, car, dog, door, apple" placeholder="输入单词，用逗号分隔">
+        <button class="btn-insert" onclick="startVisualization()">开始插入</button>
+        <button class="btn-random" onclick="randomExample()">随机示例</button>
+        <button class="btn-reset" onclick="resetTrie()">清空</button>
+        <label>
+            速度: <input type="range" id="speedRange" min="100" max="1000" step="100" value="500" oninput="updateSpeed()">
+        </label>
+    </div>
+
+    <div class="status-panel" id="statusText">准备就绪</div>
+
+    <div class="legend">
+        <span><span class="dot" style="background:var(--primary-color)"></span>普通节点</span>
+        <span><span class="dot" style="background:var(--end-color)"></span>单词结尾</span>
+        <span><span class="dot" style="background:var(--active-color)"></span>当前操作</span>
+    </div>
+
+    <div class="canvas-container" id="canvasContainer">
+        <svg id="svgCanvas"></svg>
+    </div>
+
+<script>
+    // --- Trie 数据结构 ---
+    class TrieNode {
+        constructor(char = '') {
+            this.char = char;
+            this.children = {}; // Map char -> TrieNode
+            this.isEndOfWord = false;
+            
+            // 可视化属性
+            this.x = 0;
+            this.y = 0;
+            this.id = Math.random().toString(36).substr(2, 9);
+        }
+    }
+
+    class Trie {
+        constructor() {
+            this.root = new TrieNode('root');
+        }
+
+        // 插入仅仅修改数据，不含动画逻辑，动画逻辑在外部控制
+        insertSync(word) {
+            let node = this.root;
+            for (let char of word) {
+                if (!node.children[char]) {
+                    node.children[char] = new TrieNode(char);
+                }
+                node = node.children[char];
+            }
+            node.isEndOfWord = true;
+        }
+    }
+
+    // --- 全局变量 ---
+    let trie = new Trie();
+    let delayTime = 500;
+    const svg = document.getElementById('svgCanvas');
+    let isAnimating = false;
+
+    // --- 布局算法 (核心) ---
+    // 简单的树形布局算法：根据子树的叶子节点数量分配宽度
+    
+    function getLeafCount(node) {
+        if (Object.keys(node.children).length === 0) return 1;
+        let count = 0;
+        for (let key in node.children) {
+            count += getLeafCount(node.children[key]);
+        }
+        return count;
+    }
+
+    function calculateLayout(node, level, startX, endX) {
+        node.y = level * 80 + 40; // 垂直间距
+        
+        // 当前节点的 X 坐标位于分配空间的中心
+        node.x = (startX + endX) / 2;
+
+        const childrenKeys = Object.keys(node.children).sort();
+        if (childrenKeys.length === 0) return;
+
+        const totalLeaves = getLeafCount(node);
+        const totalWidth = endX - startX;
+        
+        let currentStart = startX;
+
+        // 根据子节点的叶子数量比例，分配水平空间
+        for (let key of childrenKeys) {
+            let child = node.children[key];
+            let childLeaves = getLeafCount(child);
+            
+            // 子节点占用的宽度比例
+            let childWidth = (childLeaves / totalLeaves) * totalWidth;
+            
+            calculateLayout(child, level + 1, currentStart, currentStart + childWidth);
+            
+            currentStart += childWidth;
+        }
+    }
+
+    // --- 渲染引擎 ---
+    function render() {
+        // 1. 计算布局
+        // 获取画布宽度，或者根据树的大小动态扩展
+        const containerWidth = Math.max(document.getElementById('canvasContainer').clientWidth, 600);
+        // 根节点分配整个宽度
+        calculateLayout(trie.root, 0, 0, containerWidth);
+
+        // 动态调整 SVG 高度
+        let maxDepth = 0;
+        const findDepth = (n, d) => {
+            maxDepth = Math.max(maxDepth, d);
+            Object.values(n.children).forEach(c => findDepth(c, d+1));
+        }
+        findDepth(trie.root, 1);
+        svg.style.height = (maxDepth * 100 + 100) + 'px';
+        svg.style.width = containerWidth + 'px';
+
+        // 2. 清空画布
+        svg.innerHTML = '';
+
+        // 3. 递归绘制连线 (先画线，挡在节点后面)
+        drawLinks(trie.root);
+
+        // 4. 递归绘制节点
+        drawNodes(trie.root);
+    }
+
+    function drawLinks(node) {
+        for (let key in node.children) {
+            let child = node.children[key];
+            
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', node.x);
+            line.setAttribute('y1', node.y);
+            line.setAttribute('x2', child.x);
+            line.setAttribute('y2', child.y);
+            line.setAttribute('class', 'link');
+            line.setAttribute('id', `link-${node.id}-${child.id}`); // 用于动画高亮
+            svg.appendChild(line);
+
+            drawLinks(child);
+        }
+    }
+
+    function drawNodes(node) {
+        // 创建组
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('id', `node-group-${node.id}`);
+
+        // 圆圈
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', node.x);
+        circle.setAttribute('cy', node.y);
+        circle.setAttribute('r', 20);
+        circle.setAttribute('class', `node-circle ${node.isEndOfWord ? 'is-end' : ''}`);
+        circle.setAttribute('id', `circle-${node.id}`);
+        
+        // 文本
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', node.x);
+        text.setAttribute('y', node.y);
+        text.setAttribute('class', 'node-text');
+        text.textContent = node.char === 'root' ? 'root' : node.char;
+
+        g.appendChild(circle);
+        g.appendChild(text);
+        svg.appendChild(g);
+
+        for (let key in node.children) {
+            drawNodes(node.children[key]);
+        }
+    }
+
+    // --- 动画与控制 ---
+    function updateSpeed() {
+        delayTime = 1100 - document.getElementById('speedRange').value;
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function resetTrie() {
+        if (isAnimating) return;
+        trie = new Trie();
+        render();
+        document.getElementById('statusText').textContent = "已清空";
+    }
+
+    function randomExample() {
+        const examples = [
+            "he, him, her, his",
+            "code, cook, cool, car",
+            "api, app, apple, apply",
+            "trie, tree, try, toy"
+        ];
+        const randomStr = examples[Math.floor(Math.random() * examples.length)];
+        document.getElementById('inputWords').value = randomStr;
+    }
+
+    // 高亮辅助函数
+    function highlightNode(nodeId, type) {
+        const el = document.getElementById(`circle-${nodeId}`);
+        if(el) {
+            if(type === 'active') el.classList.add('active-node');
+            else el.classList.remove('active-node');
+        }
+    }
+
+    function highlightLink(parentId, childId, type) {
+        const el = document.getElementById(`link-${parentId}-${childId}`);
+        if(el) {
+            if(type === 'active') el.classList.add('active-link');
+            else el.classList.remove('active-link');
+        }
+    }
+
+    async function startVisualization() {
+        if (isAnimating) return;
+        
+        const input = document.getElementById('inputWords').value;
+        if (!input.trim()) return;
+
+        isAnimating = true;
+        document.querySelectorAll('button').forEach(b => b.disabled = true);
+        
+        // 如果是全新开始，重置树；如果是追加，保留树
+        // 这里为了演示清晰，每次还是不清空，支持追加
+        // 但为了防止重复，可以考虑不重复添加。
+        // trie = new Trie(); 
+
+        const words = input.split(/[,，\s]+/).filter(w => w.length > 0);
+
+        for (let word of words) {
+            await insertWithAnimation(word);
+        }
+
+        document.getElementById('statusText').textContent = "所有单词插入完成！";
+        isAnimating = false;
+        document.querySelectorAll('button').forEach(b => b.disabled = false);
+    }
+
+    async function insertWithAnimation(word) {
+        document.getElementById('statusText').textContent = `正在插入: "${word}"`;
+        
+        let currentNode = trie.root;
+        
+        // 初始高亮根节点
+        render(); // 确保最新状态
+        highlightNode(currentNode.id, 'active');
+        await sleep(delayTime);
+
+        for (let i = 0; i < word.length; i++) {
+            const char = word[i];
+            const isNewNode = !currentNode.children[char];
+
+            document.getElementById('statusText').textContent = `插入 "${word}": 处理字符 '${char}'`;
+
+            // 如果没有子节点，创建它
+            if (isNewNode) {
+                currentNode.children[char] = new TrieNode(char);
+                // 重新渲染以显示新节点（新节点此时在默认位置）
+                render(); 
+                // 恢复之前的路径高亮（因为render重置了DOM）
+                // 简化处理：这里只高亮当前路径，前面的路径不再重绘高亮
+            }
+
+            const nextNode = currentNode.children[char];
+            
+            // 动画：连线变色 -> 移动到下个节点
+            highlightLink(currentNode.id, nextNode.id, 'active');
+            highlightNode(currentNode.id, ''); // 移除上一个的高亮
+            await sleep(delayTime / 2);
+            
+            highlightNode(nextNode.id, 'active');
+            await sleep(delayTime);
+
+            currentNode = nextNode;
+        }
+
+        // 标记结尾
+        currentNode.isEndOfWord = true;
+        document.getElementById('statusText').textContent = `"${word}" 插入完成`;
+        render(); // 刷新颜色（变红）
+        // 闪烁一下结尾节点
+        highlightNode(currentNode.id, 'active');
+        await sleep(delayTime);
+        highlightNode(currentNode.id, '');
+    }
+
+    // 初始化渲染
+    render();
+
+</script>
+</body>
+</html>
