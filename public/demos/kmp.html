@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KMP 算法可视化 (修复增强版)</title>
+    <style>
+        /* --- 基础样式 --- */
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; padding: 20px; color: #333; }
+        .control-panel {
+            position: sticky; top: 0; z-index: 1000;
+            background: white; padding: 15px; border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-width: 900px; margin: 0 auto 20px auto;
+        }
+
+        h1 { margin: 0 0 10px 0; text-align: center; font-size: 1.5rem; color: #2c3e50; }
+        
+        .input-group { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+        input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 150px; font-family: monospace; }
+        
+        .btn-group { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        
+        .btn-run { background: #3498db; color: white; }
+        .btn-run:hover { background: #2980b9; }
+        
+        .btn-pause { background: #f39c12; color: white; width: 80px; }
+        .btn-pause.paused { background: #27ae60; } /* 暂停时变绿 */
+        
+        .btn-reset { background: #e74c3c; color: white; }
+        
+        #status-bar { text-align: center; font-size: 12px; color: #7f8c8d; margin-top: 5px; height: 18px; }
+
+        /* --- 演示区域 --- */
+        .section-container {
+            max-width: 900px; margin: 0 auto 30px auto;
+            background: white; padding: 20px; border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            opacity: 0.5; transition: 0.3s; pointer-events: none; /* 默认半透明不可点 */
+        }
+        .section-container.active { opacity: 1; pointer-events: auto; border: 2px solid #3498db; box-shadow: 0 0 15px rgba(52,152,219,0.2); }
+
+        h2 { margin-top: 0; font-size: 1.1rem; border-left: 4px solid #3498db; padding-left: 10px; }
+
+        /* --- 数组格子动画 --- */
+        .row-box { display: flex; align-items: center; margin-bottom: 15px; height: 50px; }
+        .row-label { width: 50px; font-weight: bold; color: #555; }
+        
+        .viz-window { position: relative; width: 100%; height: 50px; overflow: hidden; border-left: 1px solid #eee; }
+        .viz-content { position: absolute; left: 0; top: 5px; display: flex; transition: left 0.4s cubic-bezier(0.25, 1, 0.5, 1); }
+
+        .cell {
+            width: 40px; height: 40px; 
+            border: 1px solid #ddd; border-radius: 4px;
+            margin-right: 4px; background: white;
+            display: flex; align-items: center; justify-content: center;
+            font-family: monospace; font-size: 1.2rem; font-weight: bold;
+            position: relative; box-sizing: border-box;
+            transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+        }
+        .cell .idx { position: absolute; bottom: -12px; font-size: 9px; color: #999; font-weight: normal; }
+
+        /* 状态颜色 */
+        .cell.focus { border: 2px solid #f39c12; z-index: 10; transform: scale(1.1); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .cell.match { background-color: #d4efdf; border-color: #27ae60; color: #27ae60; }
+        .cell.mismatch { background-color: #fadbd8; border-color: #c0392b; color: #c0392b; }
+        .cell.found { background-color: #3498db; color: white; border-color: #2980b9; }
+
+        .log { 
+            background: #f8f9fa; border-left: 4px solid #ccc; 
+            padding: 8px 12px; font-family: monospace; font-size: 14px; color: #555; 
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="control-panel">
+    <h1>KMP 算法可视化演示</h1>
+    <div class="input-group">
+        <div>文本串: <input type="text" id="inText" value="ABABAABACABA"></div>
+        <div>模式串: <input type="text" id="inPatt" value="ABAC"></div>
+        <div style="display:flex; align-items:center;">
+            速度: <input type="range" id="inSpeed" min="100" max="1000" value="500" style="width:100px; margin-left:5px;">
+        </div>
+    </div>
+    <div class="btn-group">
+        <button class="btn-run" onclick="initAndRun('bf')">1. 暴力匹配</button>
+        <button class="btn-run" onclick="initAndRun('next')">2. Next 生成</button>
+        <button class="btn-run" onclick="initAndRun('kmp')">3. KMP 搜索</button>
+        <div style="width:10px;"></div>
+        <button class="btn-pause" id="btnPause" onclick="togglePause()">暂停</button>
+        <button class="btn-reset" onclick="forceReset()">重置</button>
+    </div>
+    <div id="status-bar">准备就绪</div>
+</div>
+
+<!-- 1. 暴力匹配 -->
+<div id="sec-bf" class="section-container">
+    <h2>1. 暴力匹配 (Brute Force)</h2>
+    <div class="row-box">
+        <div class="row-label">Text</div>
+        <div class="viz-window"><div class="viz-content" id="bf-text"></div></div>
+    </div>
+    <div class="row-box">
+        <div class="row-label">Patt</div>
+        <div class="viz-window"><div class="viz-content" id="bf-patt"></div></div>
+    </div>
+    <div class="log" id="bf-log">等待开始...</div>
+</div>
+
+<!-- 2. Next 生成 -->
+<div id="sec-next" class="section-container">
+    <h2>2. Next 数组生成</h2>
+    <div class="row-box">
+        <div class="row-label">Patt</div>
+        <div class="viz-window"><div class="viz-content" id="next-patt"></div></div>
+    </div>
+    <div class="row-box">
+        <div class="row-label">Next</div>
+        <div class="viz-window"><div class="viz-content" id="next-val"></div></div>
+    </div>
+    <div class="log" id="next-log">等待开始...</div>
+</div>
+
+<!-- 3. KMP -->
+<div id="sec-kmp" class="section-container">
+    <h2>3. KMP 匹配 (Next 加速)</h2>
+    <div class="row-box">
+        <div class="row-label">Text</div>
+        <div class="viz-window"><div class="viz-content" id="kmp-text"></div></div>
+    </div>
+    <div class="row-box">
+        <div class="row-label">Patt</div>
+        <div class="viz-window"><div class="viz-content" id="kmp-patt"></div></div>
+    </div>
+    <div class="log" id="kmp-log">等待开始...</div>
+</div>
+
+<script>
+    /* ================= 核心状态控制 ================= */
+    let globalRunId = 0; // 核心：每次运行生成的唯一ID，用于废弃旧的任务
+    let isPaused = false;
+    
+    // 工具：获取 DOM
+    const getEl = (id) => document.getElementById(id);
+    const getText = () => getEl('inText').value.trim();
+    const getPatt = () => getEl('inPatt').value.trim();
+    
+    // 状态栏更新
+    function setStatus(msg) { getEl('status-bar').innerText = msg; }
+    
+    // 暂停/继续切换
+    function togglePause() {
+        isPaused = !isPaused;
+        const btn = getEl('btnPause');
+        if(isPaused) {
+            btn.innerText = "继续";
+            btn.classList.add('paused');
+            setStatus("已暂停");
+        } else {
+            btn.innerText = "暂停";
+            btn.classList.remove('paused');
+            setStatus("运行中...");
+        }
+    }
+
+    // 强制重置
+    function forceReset() {
+        globalRunId++; // 废弃所有旧任务
+        isPaused = false;
+        getEl('btnPause').innerText = "暂停";
+        getEl('btnPause').classList.remove('paused');
+        
+        ['sec-bf', 'sec-next', 'sec-kmp'].forEach(id => {
+            getEl(id).classList.remove('active');
+            const prefix = id.split('-')[1];
+            // 清空内容，防止视觉残留
+            if(getEl(prefix + '-text')) getEl(prefix + '-text').innerHTML = '';
+            if(getEl(prefix + '-patt')) getEl(prefix + '-patt').innerHTML = '';
+            if(getEl(prefix + '-log')) getEl(prefix + '-log').innerText = '等待开始...';
+        });
+        setStatus("已重置");
+    }
+
+    // 智能等待：处理速度、暂停和终止
+    async function wait(myRunId) {
+        const speedVal = parseInt(getEl('inSpeed').value);
+        const delay = 1050 - speedVal; // 滑块越大，延时越小
+
+        // 基础延时
+        await new Promise(r => setTimeout(r, delay));
+
+        // 暂停循环
+        while(isPaused) {
+            if(globalRunId !== myRunId) return false; // 被新任务打断
+            await new Promise(r => setTimeout(r, 100));
+        }
+
+        // 检查是否被终止
+        if(globalRunId !== myRunId) return false;
+        return true;
+    }
+
+    /* ================= 绘图辅助 ================= */
+    function drawCells(containerId, str, isEmpty=false) {
+        const c = getEl(containerId);
+        c.innerHTML = '';
+        c.style.left = '0px'; // 重置位置
+        for(let i=0; i<str.length; i++) {
+            const d = document.createElement('div');
+            d.className = 'cell';
+            d.id = `${containerId}-${i}`;
+            d.innerHTML = isEmpty ? '' : str[i];
+            d.innerHTML += `<span class="idx">${i}</span>`;
+            c.appendChild(d);
+        }
+    }
+
+    function setHigh(containerId, idx, type) {
+        const el = getEl(`${containerId}-${idx}`);
+        if(el) el.className = `cell ${type}`;
+    }
+
+    function clearHigh(containerId, len) {
+        for(let i=0; i<len; i++) {
+            const el = getEl(`${containerId}-${i}`);
+            if(el) el.className = 'cell';
+        }
+    }
+
+    function moveRow(containerId, idx) {
+        // 格子宽40+右边距4 = 44px
+        const offset = idx * 44; 
+        getEl(containerId).style.left = `${offset}px`;
+    }
+
+    function log(prefix, msg) {
+        getEl(`${prefix}-log`).innerText = msg;
+    }
+
+    /* ================= 启动入口 ================= */
+    async function initAndRun(type) {
+        const T = getText();
+        const P = getPatt();
+        if(!T || !P) { alert("请先输入文本串和模式串"); return; }
+
+        forceReset(); // 先重置UI
+        globalRunId++; // 生成新ID
+        const myId = globalRunId;
+        
+        setStatus("运行中...");
+        
+        // 激活对应板块
+        getEl(`sec-${type}`).classList.add('active');
+
+        try {
+            if(type === 'bf') await runBF(myId, T, P);
+            if(type === 'next') await runNext(myId, P);
+            if(type === 'kmp') await runKMP(myId, T, P);
+            
+            if(globalRunId === myId) setStatus("演示完成");
+        } catch(e) {
+            console.error(e);
+        }
+    }
+
+    /* ================= 算法逻辑 ================= */
+
+    // 1. 暴力匹配
+    async function runBF(runId, text, patt) {
+        drawCells('bf-text', text);
+        drawCells('bf-patt', patt);
+        const n = text.length, m = patt.length;
+
+        for(let i=0; i <= n-m; i++) {
+            if(!(await wait(runId))) return; // 检查中断
+            
+            // 移动模式串：注意这里是模式串相对于文本的移动
+            // 视觉上我们移动 pattern div 的 left
+            moveRow('bf-patt', i); 
+            
+            log('bf', `尝试位置 i=${i}`);
+
+            let j = 0;
+            while(j < m) {
+                setHigh('bf-text', i+j, 'focus');
+                setHigh('bf-patt', j, 'focus');
+                if(!(await wait(runId))) return;
+
+                if(text[i+j] === patt[j]) {
+                    setHigh('bf-text', i+j, 'match');
+                    setHigh('bf-patt', j, 'match');
+                    j++;
+                } else {
+                    setHigh('bf-text', i+j, 'mismatch');
+                    setHigh('bf-patt', j, 'mismatch');
+                    log('bf', `不匹配，回退`);
+                    if(!(await wait(runId))) return;
+                    break;
+                }
+            }
+
+            if(j === m) {
+                log('bf', `找到匹配！起始点 ${i}`);
+                for(let k=0; k<m; k++) setHigh('bf-text', i+k, 'found');
+                if(!(await wait(runId))) return;
+                // 为了演示，继续找
+            }
+            
+            clearHigh('bf-text', n);
+            clearHigh('bf-patt', m);
+        }
+    }
+
+    // 2. Next 生成
+    async function runNext(runId, patt) {
+        const m = patt.length;
+        drawCells('next-patt', patt);
+        drawCells('next-val', new Array(m).fill(''), true);
+        
+        let next = new Array(m).fill(0);
+        getEl('next-val-0').innerText = '0';
+        
+        let len = 0; 
+        let i = 1;
+
+        while(i < m) {
+            setHigh('next-patt', len, 'focus'); // 前缀
+            setHigh('next-patt', i, 'focus');   // 后缀
+            log('next', `比较 P[${len}]与P[${i}]`);
+            if(!(await wait(runId))) return;
+
+            if(patt[i] === patt[len]) {
+                setHigh('next-patt', len, 'match');
+                setHigh('next-patt', i, 'match');
+                len++;
+                next[i] = len;
+                getEl(`next-val-${i}`).innerText = len;
+                log('next', `相等，len变${len}`);
+                i++;
+            } else {
+                setHigh('next-patt', len, 'mismatch');
+                setHigh('next-patt', i, 'mismatch');
+                if(!(await wait(runId))) return;
+
+                if(len > 0) {
+                    log('next', `不相等，len回退到 next[${len-1}]`);
+                    clearHigh('next-patt', m); // 清除高亮看清回退
+                    len = next[len-1];
+                    // i 不动
+                } else {
+                    next[i] = 0;
+                    getEl(`next-val-${i}`).innerText = '0';
+                    log('next', `不相等且len=0，next[${i}]=0`);
+                    i++;
+                }
+            }
+            clearHigh('next-patt', m);
+        }
+        log('next', '生成完毕');
+    }
+
+    // 3. KMP 搜索
+    async function runKMP(runId, text, patt) {
+        // 为了确保独立运行，这里静默计算一次 next
+        let next = [];
+        {
+            let m = patt.length, l=0, i=1; 
+            next = new Array(m).fill(0);
+            while(i<m){
+                if(patt[i]==patt[l]){ l++; next[i]=l; i++; }
+                else { if(l!=0) l=next[l-1]; else { next[i]=0; i++; } }
+            }
+        }
+
+        drawCells('kmp-text', text);
+        drawCells('kmp-patt', patt);
+        
+        const n = text.length;
+        const m = patt.length;
+        let i = 0; // text ptr
+        let j = 0; // patt ptr
+
+        while(i < n) {
+            // 核心视觉逻辑：Pattern[j] 对齐 Text[i]
+            // Pattern 偏移量 = (i - j) * 44px
+            moveRow('kmp-patt', i - j);
+            
+            setHigh('kmp-text', i, 'focus');
+            setHigh('kmp-patt', j, 'focus');
+            log('kmp', `比较 T[${i}] 与 P[${j}]`);
+            if(!(await wait(runId))) return;
+
+            if(text[i] === patt[j]) {
+                setHigh('kmp-text', i, 'match');
+                setHigh('kmp-patt', j, 'match');
+                i++; j++;
+                if(j === m) {
+                    log('kmp', `完全匹配！位置 ${i-j}`);
+                    for(let k=0; k<m; k++) setHigh('kmp-text', i-m+k, 'found');
+                    if(!(await wait(runId))) return;
+                    
+                    j = next[j-1];
+                    log('kmp', `回退 j 到 ${j}`);
+                    clearHigh('kmp-patt', m);
+                }
+            } else {
+                setHigh('kmp-text', i, 'mismatch');
+                setHigh('kmp-patt', j, 'mismatch');
+                if(!(await wait(runId))) return;
+
+                if(j > 0) {
+                    let oldJ = j;
+                    j = next[j-1];
+                    log('kmp', `不匹配，j跳回 ${j} (Next[${oldJ-1}])`);
+                    clearHigh('kmp-patt', m);
+                    // i 不动，下一轮循环会重新计算偏移量
+                } else {
+                    log('kmp', `不匹配，i 前进`);
+                    setHigh('kmp-text', i, ''); // 清掉红色
+                    setHigh('kmp-patt', j, '');
+                    i++;
+                }
+            }
+        }
+        log('kmp', '搜索结束');
+    }
+
+</script>
+</body>
+</html>
