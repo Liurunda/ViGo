@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitset 集合可视化</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-gradient-start: #f3f4f6;
+            --bg-gradient-end: #e5e7eb;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --text-main: #1f2937;
+            --text-secondary: #6b7280;
+            --bit-on: #6366f1;
+            --bit-off: #e5e7eb;
+            --bit-text-on: #ffffff;
+            --bit-text-off: #374151;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            color: var(--text-main);
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 800px;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            transition: transform 0.3s ease;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--text-main);
+            margin-bottom: 2rem;
+            font-weight: 700;
+            font-size: 2.25rem;
+            background: linear-gradient(to right, #4f46e5, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .section {
+            margin-bottom: 2rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Input Styles */
+        input[type="number"] {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1.5rem;
+            font-family: 'Inter', monospace;
+            font-weight: 600;
+            color: var(--text-main);
+            transition: all 0.2s;
+            box-sizing: border-box;
+            background: #f9fafb;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+            background: white;
+        }
+
+        /* Bit Grid Styles */
+        .bits-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .byte-group {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: space-between;
+        }
+
+        @media (max-width: 640px) {
+            .byte-group {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+
+        .bit-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .bit-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bit-btn.active {
+            background-color: var(--bit-on);
+            color: var(--bit-text-on);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
+        }
+
+        .bit-btn.inactive {
+            background-color: var(--bit-off);
+            color: var(--bit-text-off);
+        }
+
+        .bit-btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(0.95);
+        }
+
+        .bit-btn.active:hover {
+            filter: brightness(1.1);
+        }
+
+        .bit-index {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            font-family: monospace;
+        }
+
+        /* Set Display Styles */
+        .set-display {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 60px;
+            font-family: monospace;
+            font-size: 1.25rem;
+            color: var(--text-main);
+            line-height: 1.6;
+            word-break: break-all;
+        }
+
+        .empty-set {
+            color: #9ca3af;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Bitset 集合可视化</h1>
+
+        <div class="section">
+            <label for="intInput">整数值 (Integer)</label>
+            <input type="number" id="intInput" value="0" min="0" placeholder="Enter an integer...">
+        </div>
+
+        <div class="section">
+            <label>二进制位 (Binary Bits) - 点击切换</label>
+            <div id="bitsContainer" class="bits-wrapper">
+                <!-- Bits generated by JS -->
+            </div>
+        </div>
+
+        <div class="section">
+            <label>集合表示 (Set Representation)</label>
+            <div id="setDisplay" class="set-display">
+                <span class="empty-set">∅</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Logic for Bitset Visualization
+         * Handles User Input, Bit Toggling, and UI Updates.
+         */
+
+        // Constants
+        const TOTAL_BITS = 32; // Standard 32-bit integer visualization
+
+        // DOM Elements
+        const intInput = document.getElementById('intInput');
+        const bitsContainer = document.getElementById('bitsContainer');
+        const setDisplay = document.getElementById('setDisplay');
+
+        // State
+        let currentValue = 0;
+
+        // Initialize UI
+        function init() {
+            createBitsUI();
+            updateUI();
+        }
+
+        // Generate the bit buttons
+        function createBitsUI() {
+            bitsContainer.innerHTML = '';
+
+            // We'll group bits into bytes (groups of 8) for better readability on larger screens
+            // Or just one responsive grid. Let's try row logic: 4 rows of 8 bits?
+            // Actually, flex wrapping is easiest.
+            // Let's create a single wrapper that flexes.
+
+            let currentByteGroup = null;
+
+            // Iterate from 63 down to 0 or 31 down to 0? 
+            // 31 down to 0 is standard for reading binary left-to-right (MSB -> LSB)
+            for (let i = TOTAL_BITS - 1; i >= 0; i--) {
+                // Create a new row/group every 8 bits if we want structured layout
+                if (i % 8 === 7) {
+                    currentByteGroup = document.createElement('div');
+                    currentByteGroup.className = 'byte-group';
+                    bitsContainer.appendChild(currentByteGroup);
+                }
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'bit-container';
+
+                const btn = document.createElement('button');
+                btn.className = 'bit-btn inactive';
+                btn.dataset.index = i;
+                btn.onclick = () => toggleBit(i);
+                btn.textContent = '0';
+
+                const label = document.createElement('span');
+                label.className = 'bit-index';
+                label.textContent = i;
+
+                wrapper.appendChild(btn);
+                wrapper.appendChild(label);
+
+                // Append to current byte group or main container
+                if (currentByteGroup) {
+                    currentByteGroup.appendChild(wrapper);
+                } else {
+                    bitsContainer.appendChild(wrapper);
+                }
+            }
+        }
+
+        // Toggle a specific bit
+        function toggleBit(index) {
+            // Toggle the bit at 'index'
+            // Using BigInt concept if we wanted >32 bits, but standard JS bitwise serves 32 bits well.
+            // However, JS bitwise operators treat operands as 32-bit signed integers.
+            // If we want unsigned behavior or larger (up to 53 bits safe integer), we can use simple arithmetic.
+
+            const mask = 1 * Math.pow(2, index);
+            const hasBit = (currentValue & (1 << index)) !== 0; // Check using bitwise for 32 bit safety or math
+
+            // Safe toggle relying on math for potential larger numbers, 
+            // though bitwise is cleaner for 32-bit. Let's stick to standard bitwise.
+            let val = parseInt(intInput.value) || 0;
+
+            // Check if bit is set
+            // Note: (val & (1 << index)) might return negative if 31st bit is set due to signed 32-bit
+            // Let's stick to simple math for clarity and "unsigned" feel up to standard usage
+
+            // Construct the set of bits from the current value
+            let bits = getBits(val);
+            if (bits.includes(index)) {
+                // Remove bit
+                bits = bits.filter(b => b !== index);
+            } else {
+                // Add bit
+                bits.push(index);
+            }
+
+            // Reconstruct value
+            currentValue = bits.reduce((acc, curr) => acc + Math.pow(2, curr), 0);
+
+            intInput.value = currentValue;
+            updateUI();
+        }
+
+        function getBits(val) {
+            const bits = [];
+            for (let i = 0; i < TOTAL_BITS; i++) {
+                // Use 2^i to check
+                // We use Math.pow(2, i) because bitwise shift (1 << 31) results in negative number (signed)
+                // Comparison: (val & (1 << i))
+
+                // Safer check for full 32-bit range including unsigned interpretation:
+                if ((val / Math.pow(2, i)) % 2 >= 1) {
+                    bits.push(i);
+                }
+            }
+            return bits;
+        }
+
+        // Update from Integer Input
+        intInput.addEventListener('input', (e) => {
+            let val = parseInt(e.target.value);
+            if (isNaN(val)) val = 0;
+
+            // Clamp to 32-bit max roughly (4294967295)
+            const MAX = Math.pow(2, TOTAL_BITS) - 1;
+            if (val > MAX) val = MAX;
+            if (val < 0) val = 0;
+
+            currentValue = val;
+            // e.target.value = val; // Optional: Force clamp visual
+            updateUI();
+        });
+
+        // Main Update Function
+        function updateUI() {
+            const bits = getBits(currentValue);
+
+            // Update Buttons
+            const btns = document.querySelectorAll('.bit-btn');
+            btns.forEach(btn => {
+                const idx = parseInt(btn.dataset.index);
+                if (bits.includes(idx)) {
+                    btn.classList.remove('inactive');
+                    btn.classList.add('active');
+                    btn.textContent = '1';
+                } else {
+                    btn.classList.remove('active');
+                    btn.classList.add('inactive');
+                    btn.textContent = '0';
+                }
+            });
+
+            // Update Set Display
+            if (bits.length === 0) {
+                setDisplay.innerHTML = '<span class="empty-set">∅ (空集)</span>';
+            } else {
+                // Sort bits for display
+                bits.sort((a, b) => a - b);
+                setDisplay.textContent = `{ ${bits.join(', ')} }`;
+            }
+        }
+
+        // Boot
+        init();
+
+    </script>
+</body>
+
+</html>
