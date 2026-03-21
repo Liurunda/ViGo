@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fenwick Tree (Binary Indexed Tree) Visualization</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            width: 90%;
+            max-width: 1000px;
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #555;
+            margin-bottom: 20px;
+        }
+        #visualization-area {
+            margin: 30px 0;
+        }
+        .tree-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .node {
+            width: 50px;
+            height: 50px;
+            background-color: #3498db;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            border-radius: 5px;
+            position: relative;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        .node .index-label {
+            position: absolute;
+            bottom: -20px;
+            font-size: 0.8em;
+            color: #777;
+        }
+        .node.highlight-update {
+            background-color: #e67e22; /* Orange */
+            transform: scale(1.1);
+        }
+        .node.highlight-query {
+            background-color: #2ecc71; /* Green */
+            transform: scale(1.1);
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="number"] {
+            width: 70px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            background-color: #3498db;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #result {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+            min-height: 25px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Fenwick Tree Visualization</h1>
+    <p>A Fenwick Tree (or Binary Indexed Tree) allows for efficient prefix sum queries and point updates in an array.</p>
+    
+    <div id="visualization-area">
+        <strong>Original Array (Values):</strong>
+        <div class="tree-container" id="original-array-container"></div>
+        <strong>Fenwick Tree (BIT):</strong>
+        <div class="tree-container" id="fenwick-tree-container"></div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="update-idx">Index:</label>
+            <input type="number" id="update-idx" min="0" value="3">
+            <label for="update-val">New Value:</label>
+            <input type="number" id="update-val" value="10">
+            <button id="update-btn">Update</button>
+        </div>
+        <div class="control-group">
+            <label for="query-idx">Prefix Sum up to Index:</label>
+            <input type="number" id="query-idx" min="0" value="5">
+            <button id="query-btn">Query</button>
+        </div>
+    </div>
+    <p>Result: <span id="result"></span></p>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const SIZE = 12;
+    let originalArray = [];
+    let fenwickTree = new Array(SIZE + 1).fill(0);
+
+    const originalArrayContainer = document.getElementById('original-array-container');
+    const fenwickTreeContainer = document.getElementById('fenwick-tree-container');
+    const updateIdxInput = document.getElementById('update-idx');
+    const updateValInput = document.getElementById('update-val');
+    const queryIdxInput = document.getElementById('query-idx');
+    const updateBtn = document.getElementById('update-btn');
+    const queryBtn = document.getElementById('query-btn');
+    const resultEl = document.getElementById('result');
+
+    // Utility to sleep
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // --- Core Fenwick Tree Logic ---
+    // Note: Fenwick Tree uses 1-based indexing internally
+    function internalUpdate(index, delta) {
+        index++; // Convert to 1-based
+        while (index <= SIZE) {
+            fenwickTree[index] += delta;
+            index += index & -index; // Move to the next relevant node
+        }
+    }
+
+    function internalQuery(index) {
+        index++; // Convert to 1-based
+        let sum = 0;
+        while (index > 0) {
+            sum += fenwickTree[index];
+            index -= index & -index; // Move to the parent node
+        }
+        return sum;
+    }
+
+    // --- Visualization ---
+    function render() {
+        originalArrayContainer.innerHTML = '';
+        fenwickTreeContainer.innerHTML = '';
+
+        // Render Original Array
+        for (let i = 0; i < SIZE; i++) {
+            const node = document.createElement('div');
+            node.className = 'node';
+            node.textContent = originalArray[i];
+            node.dataset.index = i;
+            const label = document.createElement('span');
+            label.className = 'index-label';
+            label.textContent = i;
+            node.appendChild(label);
+            originalArrayContainer.appendChild(node);
+        }
+
+        // Render Fenwick Tree
+        for (let i = 1; i <= SIZE; i++) {
+            const node = document.createElement('div');
+            node.className = 'node';
+            node.textContent = fenwickTree[i];
+            node.dataset.index = i;
+             const label = document.createElement('span');
+            label.className = 'index-label';
+            label.textContent = i;
+            node.appendChild(label);
+            fenwickTreeContainer.appendChild(node);
+        }
+    }
+    
+    async function highlightNode(container, index, className, duration = 500) {
+        const node = container.querySelector(`.node[data-index='${index}']`);
+        if (node) {
+            node.classList.add(className);
+            await sleep(duration);
+            node.classList.remove(className);
+        }
+    }
+    
+    // --- Event Handlers ---
+    async function handleUpdate() {
+        const idx = parseInt(updateIdxInput.value, 10);
+        const newValue = parseInt(updateValInput.value, 10);
+
+        if (isNaN(idx) || isNaN(newValue) || idx < 0 || idx >= SIZE) {
+            resultEl.textContent = 'Invalid index or value for update.';
+            return;
+        }
+        resultEl.textContent = '';
+        
+        const delta = newValue - originalArray[idx];
+        originalArray[idx] = newValue;
+
+        // Animate original array update
+        await highlightNode(originalArrayContainer, idx, 'highlight-update');
+        render();
+
+        let currentIdx = idx + 1; // 1-based index
+        while (currentIdx <= SIZE) {
+            await highlightNode(fenwickTreeContainer, currentIdx, 'highlight-update');
+            currentIdx += currentIdx & -currentIdx;
+        }
+
+        internalUpdate(idx, delta);
+        render();
+    }
+
+    async function handleQuery() {
+        const idx = parseInt(queryIdxInput.value, 10);
+        if (isNaN(idx) || idx < 0 || idx >= SIZE) {
+            resultEl.textContent = 'Invalid index for query.';
+            return;
+        }
+        resultEl.textContent = 'Calculating...';
+
+        let currentIdx = idx + 1; // 1-based
+        let sum = 0;
+        let path = [];
+
+        while (currentIdx > 0) {
+            path.push(currentIdx);
+            sum += fenwickTree[currentIdx];
+            await highlightNode(fenwickTreeContainer, currentIdx, 'highlight-query');
+            currentIdx -= currentIdx & -currentIdx;
+        }
+        
+        const pathStr = path.join(' + ');
+        resultEl.textContent = `Sum(${idx}) = ${pathStr} = ${internalQuery(idx)}`;
+        render();
+    }
+    
+    // --- Initialization ---
+    function init() {
+        updateIdxInput.max = SIZE - 1;
+        queryIdxInput.max = SIZE - 1;
+
+        for (let i = 0; i < SIZE; i++) {
+            const randomVal = Math.floor(Math.random() * 10) + 1;
+            originalArray.push(randomVal);
+            internalUpdate(i, randomVal);
+        }
+        render();
+    }
+    
+    updateBtn.addEventListener('click', handleUpdate);
+    queryBtn.addEventListener('click', handleQuery);
+    
+    init();
+});
+</script>
+
+</body>
+</html>
