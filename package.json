@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "BASE_PATH=/ViGo/ astro build",
+    "build:server": "BASE_PATH=/ astro build",
     "preview": "astro preview",
     "astro": "astro"
   },

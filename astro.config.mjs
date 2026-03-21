@@ -4,7 +4,7 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
-	base: process.env.BASE_PATH || '/',
+	base: process.env.BASE_PATH || '/ViGo',
 	integrations: [
 		starlight({
 			title: 'My Docs',
